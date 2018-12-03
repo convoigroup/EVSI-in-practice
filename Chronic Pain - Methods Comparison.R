@@ -8,6 +8,13 @@
 #of the parameter estimate.
 #t is treatment and l is the number of treatments that have been attempted
 
+##Packages
+library(BCEA)
+library(R2OpenBUGS)
+library(R2jags)
+library(mgcv)
+library(psych)
+
 gamma.par<-function(par.est){
   alpha=100
   beta=100/par.est
@@ -292,7 +299,6 @@ for(i in 1:N){
 #This gives the standard cost-effectiveness analysis for the Chronic Pain model.
 #It also has the EVPPI calculations to determine where to focus analysis.
 
-library(BCEA)
 discount.15<-sum(1/(1+0.035)^(0:15))
 m<-bcea(discount.15*cbind(effects.t1,effects.t2),discount.15*cbind(costs.t1,costs.t2),ref=2,wtp=c(0,20000))
 var.pr<-var(m$ib[which(m$k==20000),])
@@ -494,7 +500,6 @@ for(l in 1:5){
 
 
 ####GAM Fitting - STRONG et al method####
-library(mgcv)
 EVSI.gam<-array()
 var.fit<-array()
 sig.X.noae<-0.300
