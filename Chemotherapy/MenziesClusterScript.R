@@ -9,6 +9,9 @@ library(plyr)                           # Data manipulation package
 library(R2jags)
 library(mgcv)
 
+library(foreach)
+library(doParallel)
+
 model<-function(){
   # Side effects analysis
   num.se ~ dbin(pi[1], num.pat)     # sampling distribution
@@ -327,7 +330,75 @@ rm(e,c)
 extra.lines<-(Size.Prior+1):dim(prior.model$BUGSoutput$sims.matrix)[1]
 theta<-as.data.frame(prior.model$BUGSoutput$sims.matrix[-extra.lines,c("pi1","rho","gamma","gamma2","lambda.2.3.fix","lambda.1.3.fix","SE[1]","SE[2]")])
 colnames(theta)<-c("pi1","rho","gamma","gamma2","lambda.2.3.fix","lambda.1.3.fix","SE1","SE2")
-rm(prior.model)
+rm(prior.model,extra.lines,l)
 
-##From Nested Simulations avaliable on request
-evsi.true<-21.10214
+## Find the incremental net benefit for each treatment
+INB<-NB[,2]-NB[,1]
+rm(NB)
+
+rm(m.1.3,m.2.3,mu.amb,mu.chemo,mu.death,mu.e.hosp,mu.hosp,s.amb,s.death,
+   s.hosp.s.rho,sd.amb,sd.hosp,Size.Tot,v.1.3,v.2.3,var.chemo,var.e.amb,var.e.hosp,
+   betaPar,model,lognPar,sd.death,s.rho,s.hosp,m.e.amb)
+
+Size.Outer<-20000
+
+pi2<-theta[1:Size.Outer,"pi1"]*theta[1:Size.Outer,"rho"]
+recover.amb<--log(1-theta[1:Size.Outer,"lambda.1.3.fix"])
+recover.hosp<--log(1-theta[1:Size.Outer,"lambda.2.3.fix"])
+params<-cbind(theta[1:Size.Outer,"pi1"],pi2,theta[1:Size.Outer,"gamma"],theta[1:Size.Outer,"gamma2"],recover.amb,recover.hosp)
+rm(theta)
+y<-INB[1:Size.Outer]
+rm(INB)
+
+##############Menzies########################
+likelihood<-function(D,theta){
+  n<-150
+  PSA.sim<-dim(theta)[1]
+  colnames(D)<-c("SE1","SE2","amb","hosp","N.die","N.hosp")
+  colnames(theta)<-c("pi1","pi2","gamma","gamma2","amb","hosp")
+  l<-dbinom(D[,"SE1"],n,theta[,"pi1"],log = TRUE)+
+    dbinom(D[,"SE2"],n,theta[,"pi2"],log=TRUE)+
+    dbinom(D[,"N.hosp"],D[,"SE1"]+D[,"SE2"],theta[,"gamma"],log=TRUE)+
+    dbinom(D[,"N.die"],D[,"N.hosp"],theta[,"gamma2"],log=TRUE)+
+    log(theta[,"amb"])*(D[,"SE1"]+D[,"SE2"]-D[,"N.hosp"])-theta[,"amb"]*D[,"amb"]+
+    log(theta[,"hosp"])*(D[,"N.hosp"]-D[,"N.die"])-theta[,"hosp"]*D[,"hosp"]
+  return(exp(l))
+}
+
+no_cores <- detectCores()
+cl<-makeCluster(no_cores)
+registerDoParallel(cl)
+uncert<-200
+EVSI.Menzies.uncert<-foreach(i=1:(uncert),.combine=c,
+                             .export=c("pi1","pi2",
+                                       "gamma","gamma2",
+                                       "recover.amb","recover.amb",
+                                       "Size.Outer","likelihood","params","y")) %dopar% {
+                                         prepost.M<-array(dim=Size.Outer)
+                                         for(i in 1:Size.Outer){
+                                           n<-150
+                                           X.SE1<-rbinom(1,n,params[i,1])
+                                           X.SE2<-rbinom(1,n,pi2[i])
+                                           X.N.hosp<-rbinom(1,X.SE1+X.SE2,params[i,3])
+                                           X.N.die<-rbinom(1,X.N.hosp,params[i,4])
+                                           N.amb<-X.SE1+X.SE2-X.N.hosp
+                                           T.re.amb<-rexp(N.amb,recover.amb[i])
+                                           X.amb<-sum(T.re.amb)
+                                           N.hosp<-X.N.hosp-X.N.die
+                                           T.re.hosp<-rexp(N.hosp,recover.hosp[i])
+                                           X.hosp<-sum(T.re.hosp)
+                                           D<-as.data.frame(cbind(X.SE1,X.SE2,X.amb,X.hosp,X.N.die,X.N.hosp))  
+                                           ll<-likelihood(D,params)
+                                           w<-ll/sum(ll)
+                                           prepost.M[i]<-w%*%y
+                                         }
+                                         rm(ll)
+                                         rm(w)
+                                         rm(D)
+                                         evsi.Menzies<-mean(pmax(0,prepost.M))-max(0,mean(prepost.M))
+                                         rm(prepost.M)
+                                         evsi.Menzies
+                                       }
+stopCluster(cl)
+
+write.table(EVSI.Menzies.uncert,"/home/aheath/Chemotherapy/EVSIMenzies.txt")

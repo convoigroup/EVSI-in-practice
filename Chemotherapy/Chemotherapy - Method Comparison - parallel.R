@@ -246,6 +246,8 @@ rm(prepost.MM)
 EVSI.calc
                      }
 stopCluster(cl)
+mean(EVSI.Heath.uncert)
+sd(EVSI.Heath.uncert)
 
 #####################Jalal and Alarid-Escudero#####################
 ###Estimating n0
@@ -259,7 +261,7 @@ n.iter <- ceiling(Size.Inner/n.chains) + n.burnin # Number of iterations per cha
 
 library(foreach)
 library(doParallel)
-no_cores <- detectCores()-4
+no_cores <- detectCores()-1
 cl<-makeCluster(no_cores)
 registerDoParallel(cl)
 EVSI.Jalal.uncert<-foreach(i=1:(uncert),.combine=c,
@@ -277,7 +279,8 @@ EVSI.Jalal.uncert<-foreach(i=1:(uncert),.combine=c,
                                      "p1.chemo","p2.chemo",
                                      "p1.amb","p2.amb",
                                      "p1.hosp","p2.hosp",
-                                     "TH","predict.ga","lmm1"),
+                                     "TH","predict.ga","lmm1",
+                                     "filein","inits","parameters.to.save"),
                            .packages=c("R2jags","R2OpenBUGS","mgcv")) %dopar% {
 pi1.mean<-rho.mean<-gamma.mean<-gamma2.mean<-lambda.2.3.fix.mean<-lambda.1.3.fix.mean<-SE1.mean<-SE2.mean<-array(NA,dim=Size.Outer)
 for(i in 1:Size.Outer){
@@ -350,9 +353,22 @@ evsi.Jal
 }
 stopCluster(cl)
 
+mean(EVSI.Jalal.uncert)
+sd(EVSI.Jalal.uncert)
+
 ###############Strong et al.#########################
 
 start<-Sys.time()
+library(foreach)
+library(doParallel)
+no_cores <- detectCores()
+cl<-makeCluster(no_cores)
+registerDoParallel(cl)
+EVSI.Strong.uncert<-foreach(i=1:(uncert),.combine=c,
+                           .export=c("pi1","pi2",
+                                     "gamma","gamma2",
+                                     "recover.amb","recover.amb"),
+                           .packages=c("mgcv")) %dopar% {
 X.SE1<-X.SE2<-X.N.die<-X.N.hosp<-X.amb<-X.hosp<-array(dim=Size.Prior)
 for(i in 1:Size.Prior){
   n<-150
@@ -372,11 +388,14 @@ X.hosp[i]<-sum(T.re.hosp)
 
 dat<-as.data.frame(cbind(y,X.amb,X.SE1,X.SE2,X.N.hosp,X.hosp,X.N.die))
 prepost.s<-gam(y~s(X.amb)+s(X.SE1)+s(X.SE2)+s(X.N.hosp)+s(X.hosp)+s(X.N.die),data=dat)
-end<-Sys.time()
-
-time.Strong<-difftime(end,start,units="auto")
+rm(dat)
 
 EVSI.strong<-mean(pmax(0,prepost.s$fitted.values))-max(0,mean(prepost.s$fitted.values))
+rm(prepost.s)
+EVSI.strong
+                           }
+stopCluster(cl)
+#EVSI.Strong.uncert<-EVSI.Jalal.uncert
 
 ##############Menzies########################
 likelihood<-function(D,theta){
@@ -391,12 +410,21 @@ likelihood<-function(D,theta){
     log(theta[,"amb"])*(D[,"SE1"]+D[,"SE2"]-D[,"N.hosp"])-theta[,"amb"]*D[,"amb"]+
     log(theta[,"hosp"])*(D[,"N.hosp"]-D[,"N.die"])-theta[,"hosp"]*D[,"hosp"]
   return(exp(l))
-  }
-
+}
 Size.Outer<-20000
+library(foreach)
+library(doParallel)
+no_cores <- detectCores()-2
+cl<-makeCluster(no_cores)
+registerDoParallel(cl)
+EVSI.Menzies.uncert<-foreach(i=1:(uncert),.combine=c,
+                            .export=c("pi1","pi2",
+                                      "gamma","gamma2",
+                                      "recover.amb","recover.amb",
+                                      "Size.Outer","likelihood")) %dopar% {
+
 params<-cbind(pi1,pi2,gamma,gamma2,recover.amb,recover.hosp)[1:Size.Outer,]
 prepost.M<-array(dim=Size.Outer)
-start<-Sys.time()
 for(i in 1:Size.Outer){
   n<-150
   X.SE1<-rbinom(1,n,pi1[i])
@@ -414,16 +442,20 @@ for(i in 1:Size.Outer){
   w<-ll/sum(ll)
   prepost.M[i]<-w%*%y[1:Size.Outer]
 }
-end<-Sys.time()
-
-time.Menzies<-end-start
+rm(ll)
+rm(w)
+rm(D)
+rm(params)
 evsi.Menzies<-mean(pmax(0,prepost.M))-max(0,mean(prepost.M))
+rm(prepost.M)
+evsi.Menzies
+}
+stopCluster(cl)
+
 
 c(SeA=EVSI.strong,M=evsi.Menzies,JA=evsi.Jal,HeA=mean(pmax(prepost.MM,0),na.rm=TRUE)-max(0,mean(prepost.MM,na.rm=TRUE)),
       Truth = evsi.true)
 
-}
-stopCluster(cl)
 
 cbind(SeA=time.Strong,
       M=time.Menzies,

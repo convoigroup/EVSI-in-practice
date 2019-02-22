@@ -9,6 +9,10 @@ library(plyr)                           # Data manipulation package
 library(R2jags)
 library(mgcv)
 
+library(foreach)
+library(doParallel)
+source('predict_ga.R', encoding = 'WINDOWS-1252')
+
 model<-function(){
   # Side effects analysis
   num.se ~ dbin(pi[1], num.pat)     # sampling distribution
@@ -327,7 +331,58 @@ rm(e,c)
 extra.lines<-(Size.Prior+1):dim(prior.model$BUGSoutput$sims.matrix)[1]
 theta<-as.data.frame(prior.model$BUGSoutput$sims.matrix[-extra.lines,c("pi1","rho","gamma","gamma2","lambda.2.3.fix","lambda.1.3.fix","SE[1]","SE[2]")])
 colnames(theta)<-c("pi1","rho","gamma","gamma2","lambda.2.3.fix","lambda.1.3.fix","SE1","SE2")
-rm(prior.model)
+rm(prior.model,extra.lines,l)
 
-##From Nested Simulations avaliable on request
-evsi.true<-21.10214
+## Find the incremental net benefit for each treatment
+INB<-NB[,2]-NB[,1]
+rm(NB)
+
+rm(m.1.3,m.2.3,mu.amb,mu.chemo,mu.death,mu.e.hosp,mu.hosp,s.amb,s.death,
+   s.hosp.s.rho,sd.amb,sd.hosp,Size.Tot,v.1.3,v.2.3,var.chemo,var.e.amb,var.e.hosp,
+   betaPar,model,lognPar,sd.death,s.rho,s.hosp,m.e.amb)
+
+pi1<-theta[,"pi1"]
+pi2<-theta[,"pi1"]*theta[,"rho"]
+gamma<-theta[,"gamma"]
+gamma2<-theta[,"gamma2"]
+recover.amb<--log(1-theta[,"lambda.1.3.fix"])
+recover.hosp<--log(1-theta[,"lambda.2.3.fix"])
+rm(theta)
+
+uncert<-200
+no_cores <- detectCores()
+cl<-makeCluster(no_cores)
+registerDoParallel(cl)
+EVSI.Strong.uncert<-foreach(i=1:(uncert),.combine=c,
+                            .export=c("pi1","pi2",
+                                      "gamma","gamma2",
+                                      "recover.amb","recover.amb"),
+                            .packages=c("mgcv")) %dopar% {
+                              X.SE1<-X.SE2<-X.N.die<-X.N.hosp<-X.amb<-X.hosp<-array(dim=Size.Prior)
+                              for(i in 1:Size.Prior){
+                                n<-150
+                                X.SE1[i]<-rbinom(1,n,pi1[i])
+                                X.SE2[i]<-rbinom(1,n,pi2[i])
+                                
+                                X.N.hosp[i]<-rbinom(1,X.SE1[i]+X.SE2[i],gamma[i])
+                                X.N.die[i]<-rbinom(1,X.N.hosp[i],gamma2[i])
+                                
+                                N.amb<-X.SE1+X.SE2-X.N.hosp
+                                T.re.amb<-rexp(N.amb[i],recover.amb[i])
+                                X.amb[i]<-sum(T.re.amb)
+                                N.hosp<-X.N.hosp-X.N.die
+                                T.re.hosp<-rexp(N.hosp[i],recover.hosp[i])
+                                X.hosp[i]<-sum(T.re.hosp)
+                              }
+                              
+                              dat<-as.data.frame(cbind(INB,X.amb,X.SE1,X.SE2,X.N.hosp,X.hosp,X.N.die))
+                              prepost.s<-gam(INB~s(X.amb)+s(X.SE1)+s(X.SE2)+s(X.N.hosp)+s(X.hosp)+s(X.N.die),data=dat)
+                              rm(dat)
+                              
+                              EVSI.strong<-mean(pmax(0,prepost.s$fitted.values))-max(0,mean(prepost.s$fitted.values))
+                              rm(prepost.s)
+                              EVSI.strong
+                            }
+stopCluster(cl)
+
+write.table(EVSI.Strong.uncert,"/home/aheath/Chemotherapy/EVSIStrong.txt")

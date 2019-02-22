@@ -327,7 +327,4 @@ rm(e,c)
 extra.lines<-(Size.Prior+1):dim(prior.model$BUGSoutput$sims.matrix)[1]
 theta<-as.data.frame(prior.model$BUGSoutput$sims.matrix[-extra.lines,c("pi1","rho","gamma","gamma2","lambda.2.3.fix","lambda.1.3.fix","SE[1]","SE[2]")])
 colnames(theta)<-c("pi1","rho","gamma","gamma2","lambda.2.3.fix","lambda.1.3.fix","SE1","SE2")
-rm(prior.model)
-
-##From Nested Simulations avaliable on request
-evsi.true<-21.10214
+rm(prior.model,extra.lines,l)
