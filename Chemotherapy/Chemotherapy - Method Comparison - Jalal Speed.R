@@ -170,7 +170,7 @@ data.full<-append(data,data.dat)
     data =  data.full,
     inits = NULL,
     parameters.to.save = parameters.to.save,
-    model.file = filein, 
+    model.file = model.dat, 
     n.chains = n.chains, 
     n.iter = n.iter, 
     n.thin = 1, 

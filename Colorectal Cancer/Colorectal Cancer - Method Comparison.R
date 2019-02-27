@@ -32,6 +32,7 @@ source("R/00_general_functions.R")
 source("R/02_crc-nhm_functions.R")
 source("R/04_calibrate-det_functions.R")
 source("R/08_crc-screening_functions.R")
+source("R/09_EVSI_functions.R")
 
 n.sim <- 5000
 ### Sample from informed priors

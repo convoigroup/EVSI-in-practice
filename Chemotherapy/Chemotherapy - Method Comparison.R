@@ -371,10 +371,12 @@ X.hosp[i]<-sum(T.re.hosp)
 }
 
 dat<-as.data.frame(cbind(y,X.amb,X.SE1,X.SE2,X.N.hosp,X.hosp,X.N.die))
-prepost.s<-gam(y~s(X.amb)+s(X.SE1)+s(X.SE2)+s(X.N.hosp)+s(X.hosp)+s(X.N.die),data=dat)
+prepost.s<-gam(y~te(X.amb, X.SE1, X.SE2, X.N.hosp, X.hosp, X.N.die, k=3), data=dat)
+
 end<-Sys.time()
 
 time.Strong<-difftime(end,start,units="auto")
+plot(prepost.s)
 
 EVSI.strong<-mean(pmax(0,prepost.s$fitted.values))-max(0,mean(prepost.s$fitted.values))
 

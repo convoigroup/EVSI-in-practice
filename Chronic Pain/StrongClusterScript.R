@@ -355,7 +355,7 @@ EVSI.Strong.uncert<-foreach(i=1:(uncert),.combine=rbind,
                                              X.gam[j,]<-c(psych::geometric.mean(samp),psych::geometric.mean(1-samp))
                                              X.gam.with[j,]<-c(psych::geometric.mean(samp.with),psych::geometric.mean(1-samp.with))
                                            }
-                                           gam.fit<-gam(INB[1:N]~te(X.gam,X.gam.with))
+                                           gam.fit<-gam(INB[1:N]~te(X.gam[,1], X.gam[,2], X.gam.with[,1], X.gam.with[,2])) 
                                            EVSI.gam[i]<-mean(pmax(0,gam.fit$fitted))-max(0,mean(gam.fit$fitted))
                                            }
 
