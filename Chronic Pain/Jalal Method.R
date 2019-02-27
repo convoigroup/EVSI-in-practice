@@ -330,8 +330,8 @@ sig.X.noae<-0.300
 sig.X.with<-0.310
 n.<-c(10,25,50,100,150)
 ###Estimating n0
-Size.Outer<-10#00
-Size.Inner<-10#000
+Size.Outer<-1000
+Size.Inner<-10000
 
 parameters.to.save <-cbind("u.l1.noae","u.l1.withdraw.noae")
 #Utilities
