@@ -11,7 +11,6 @@ library(mgcv)
 
 library(foreach)
 library(doParallel)
-source('predict_ga.R', encoding = 'WINDOWS-1252')
 
 model<-function(){
   # Side effects analysis
@@ -338,8 +337,8 @@ INB<-NB[,2]-NB[,1]
 rm(NB)
 
 rm(m.1.3,m.2.3,mu.amb,mu.chemo,mu.death,mu.e.hosp,mu.hosp,s.amb,s.death,
-   s.hosp.s.rho,sd.amb,sd.hosp,Size.Tot,v.1.3,v.2.3,var.chemo,var.e.amb,var.e.hosp,
-   betaPar,model,lognPar,sd.death,s.rho,s.hosp,m.e.amb)
+   s.hosp,s.rho,sd.amb,sd.hosp,v.1.3,v.2.3,var.chemo,var.e.amb,var.e.hosp,
+   betaPar,model,lognPar,sd.death)
 
 pi1<-theta[,"pi1"]
 pi2<-theta[,"pi1"]*theta[,"rho"]
