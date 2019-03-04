@@ -521,8 +521,11 @@ for(i in 1:5){
 gam.fit<-gam(m$ib[which(m$k==20000),1:N]~te(X.gam[,1], X.gam[,2], X.gam.with[,1], X.gam.with[,2])) 
  # gam(m$ib[which(m$k==20000),1:N]~te(X.gam,X.gam.with))
 EVSI.gam[i]<-mean(pmax(0,gam.fit$fitted))-max(0,mean(gam.fit$fitted))
-var.fit[i]<-var(gam.fit$fitted)}
+#var.fit[i]<-var(gam.fit$fitted)
+}
 end<-Sys.time()
+
+end-start
 
 ####MENZIES####
 sig.X.noae<-0.300

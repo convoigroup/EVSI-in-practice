@@ -334,8 +334,8 @@ n.<-c(10,25,50,100,150)
 
 no_cores <- detectCores()
 cl<-makeCluster(no_cores)
-registerDoParallel(cl)
-uncert<-200
+registerDoParallel(2)#(cl)
+uncert<-2#00
 EVSI.Strong.uncert<-foreach(i=1:(uncert),.combine=rbind,
                              .export=c("u.l1.withdraw.noae","u.l1.noae",
                                        "sig.X.noae",
