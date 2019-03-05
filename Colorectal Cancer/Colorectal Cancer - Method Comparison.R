@@ -40,7 +40,7 @@ source("R/00_general_functions.R")
 source("R/02_crc-nhm_functions.R")
 source("R/04_calibrate-det_functions.R")
 source("R/08_crc-screening_functions.R")
-source("R/09_EVSI_Functions.R")
+source("C:/Users/anna heath/Documents/GitHub/EVSI_Comparison/Colorectal Cancer/09_EVSI_Functions.R")
 set.seed(12)
 ### Sample from informed priors
 df.prior.informed <- sample.prior.informed(n.sim)
@@ -333,13 +333,14 @@ for(q in 1:n.sim){
 }
 
 
-write.csv(mean.param,"C:/Users/anna heath/OneDrive/OneDrive - SickKids/EVSI Methods/mean_jalal_fer.csv")
+#write.csv(mean.param,"C:/Users/anna heath/OneDrive/OneDrive - SickKids/EVSI Methods/mean_jalal_fer.csv")
 #mean.param<-read.csv("C:/Users/anna heath/OneDrive/OneDrive - SickKids/EVSI Methods/mean_jalal_fer.csv")[,2:3]
 source('C:/Users/anna heath/OneDrive/OneDrive - SickKids/EVSI Methods/predict_ga.R', encoding = 'WINDOWS-1252')
 #Might work better with te...can't get the function to work??
 mod<-gam(INB[1:n.sim]~s(df.psa.params.informed[1:n.sim,1])+s(df.psa.params.informed[1:n.sim,2])+
            s(df.psa.params.informed[1:n.sim,"prev.adeno"]))
 
+mean.param<-read.csv("C:/Users/anna heath/OneDrive/OneDrive - SickKids/EVSI Methods/mean_jalal_fer.csv")[,2:4]
 plot(mod$fitted.values,mod$fitted.values-INB[1:n.sim])
 lambda_1.n0<-40*(var(df.psa.params.informed[,1])/var(mean.param[,1],na.rm=TRUE)-1)
 g.n0<-40*(var(df.psa.params.informed[,2])/var(mean.param[,2],na.rm=TRUE)-1)
