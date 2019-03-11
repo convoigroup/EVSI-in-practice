@@ -328,15 +328,15 @@ rm(e,c)
 
 # Matrix of parameters of interest from baseline model.
 extra.lines<-(Size.Prior+1):dim(prior.model$BUGSoutput$sims.matrix)[1]
-theta<-as.data.frame(prior.model$BUGSoutput$sims.matrix[-extra.lines,c("pi1","rho","gamma","gamma2","lambda.2.3.fix","lambda.1.3.fix","SE[1]","SE[2]")])
-colnames(theta)<-c("pi1","rho","gamma","gamma2","lambda.2.3.fix","lambda.1.3.fix","SE1","SE2")
+theta<-as.data.frame(prior.model$BUGSoutput$sims.matrix[-extra.lines,c("pi1","rho","gamma","gamma2","lambda.2.3.fix","lambda.1.3.fix")])
+colnames(theta)<-c("pi1","rho","gamma","gamma2","lambda.2.3.fix","lambda.1.3.fix")
 rm(prior.model,extra.lines,l)
 
 ## Find the incremental net benefit for each treatment
 INB<-NB[,2]-NB[,1]
 rm(NB)
 ### EVPPI estimation
-save<-gam(INB~s(pi1)+s(rho)+s(gamma)+s(gamma2)+s(lambda.2.3.fix)+s(lambda.1.3.fix)+s(SE1)+s(SE2),data=theta)$fitted.values
+save<-gam(INB~te(pi1,rho,gamma,gamma2,lambda.2.3.fix,lambda.1.3.fix,k=3),data=theta)$fitted.values
 
 uncert<-200
 no_cores <- detectCores()

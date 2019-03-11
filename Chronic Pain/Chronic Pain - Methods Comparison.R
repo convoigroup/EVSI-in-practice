@@ -384,7 +384,7 @@ for(j in 1:Q){
   X4<-rbeta(n.model,betaPar(phi4[j],sig.X.with)$a,betaPar(phi4[j],sig.X.with)$b)
   
   #Missingness
-  missingness<-rbinom(n.model,1,0.687)#0.757
+  missingness<-rbinom(n.model,1,1)#0.687)#0.757
   #X1[which(X1*missingness==0)]<-NA
   X2[which(X2*missingness==0)]<-NA
   #X3[which(X3*missingness==0)]<-NA
@@ -512,7 +512,7 @@ for(i in 1:5){
   X.gam<-array(NA,dim=c(N,2))
   X.gam.with<-array(NA,dim=c(N,2))
   for(j in 1:N){
-    rand<-rbinom(n.loop,1,0.687)
+    rand<-rbinom(n.loop,1,1)#0.687)
     samp<-rbeta(sum(rand),betaPar(u.l1.noae[j],sig.X.noae)$a,betaPar(u.l1.noae[j],sig.X.noae)$b)
     samp.with<-rbeta(sum(rand),betaPar(u.l1.withdraw.noae[j],sig.X.with)$a,betaPar(u.l1.withdraw.noae[j],sig.X.with)$b)
     X.gam[j,]<-c(psych::geometric.mean(samp),psych::geometric.mean(1-samp))
@@ -566,14 +566,14 @@ EVSI.men[i]<-mean(pmax(0,mu.X),na.rm=TRUE)-max(0,mean(mu.X,na.rm=TRUE))
 }
 
 ####JALAL ET AL####
-source('~/predict_ga.R', encoding = 'WINDOWS-1252')
+source('predict_ga.R', encoding = 'WINDOWS-1252')
 library(R2jags)
 library(R2OpenBUGS)
 INB<-20000*m$delta.e-m$delta.c
 mod<-gam(INB~s(u.l1.noae)+s(u.l1.withdraw.noae))
 ###Estimating n0
 Size.Outer<-1000
-Size.Inner<-10000
+Size.Inner<-5000
 
 parameters.to.save <-cbind("u.l1.noae","u.l1.withdraw.noae")
 #Utilities
@@ -602,7 +602,7 @@ model<-function(){
 filein <- file.path(getwd(),fileext="psitemp.txt")
 write.model(model,filein)
 
-Mean.X<-array(NA,dim=c(Size.Outer,2))
+Mean.X<-var.X<-array(NA,dim=c(Size.Outer,2))
 
 start<-Sys.time()
 for(j in 1:Size.Outer){
@@ -650,6 +650,7 @@ for(j in 1:Size.Outer){
   if(stopping<=20){
     coda.full<-coda.save[[1]]
     Mean.X[j,]<-apply(coda.save[[1]],2,mean)
+    var.X[j,]<-apply(coda.save[[1]],2,var)
   }
 }
 
@@ -684,3 +685,6 @@ which((EVSI.truth-EVSI.heath)/EVSI.truth>=0.05)
 which((EVSI.truth-EVSI.jalal)/EVSI.truth>=0.05)
 which((EVSI.truth-EVSI.menzies)/EVSI.truth>=0.05)
 which((EVSI.truth-EVSI.strong)/EVSI.truth>=0.05)
+
+
+EVSI.heath;EVSI.gam;evsi.Jal

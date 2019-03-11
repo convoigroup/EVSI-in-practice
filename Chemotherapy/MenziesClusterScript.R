@@ -346,9 +346,8 @@ pi2<-theta[1:Size.Outer,"pi1"]*theta[1:Size.Outer,"rho"]
 recover.amb<--log(1-theta[1:Size.Outer,"lambda.1.3.fix"])
 recover.hosp<--log(1-theta[1:Size.Outer,"lambda.2.3.fix"])
 params<-cbind(theta[1:Size.Outer,"pi1"],pi2,theta[1:Size.Outer,"gamma"],theta[1:Size.Outer,"gamma2"],recover.amb,recover.hosp)
-rm(theta)
-y<-INB[1:Size.Outer]
-rm(INB)
+y<-gam(INB~te(pi1,rho,gamma,gamma2,lambda.2.3.fix,lambda.1.3.fix,k=3),data=theta)$fitted.values[1:Size.Outer]
+rm(theta,INB)
 
 ##############Menzies########################
 likelihood<-function(D,theta){
@@ -370,8 +369,7 @@ cl<-makeCluster(no_cores)
 registerDoParallel(cl)
 uncert<-200
 EVSI.Menzies.uncert<-foreach(i=1:(uncert),.combine=c,
-                             .export=c("pi1","pi2",
-                                       "gamma","gamma2",
+                             .export=c("pi2","gamma",
                                        "recover.amb","recover.amb",
                                        "Size.Outer","likelihood","params","y")) %dopar% {
                                          prepost.M<-array(dim=Size.Outer)

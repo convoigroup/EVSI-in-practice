@@ -11,7 +11,7 @@ library(mgcv)
 
 library(foreach)
 library(doParallel)
-source('predict_ga.R', encoding = 'WINDOWS-1252')
+source('/home/aheath/Chemotherapy/predict_ga.R', encoding = 'WINDOWS-1252')
 
 model<-function(){
   # Side effects analysis
@@ -337,7 +337,7 @@ rm(prior.model,extra.lines,l)
 INB<-NB[,2]-NB[,1]
 rm(NB)
 ### EVPPI estimation
-lmm1<-gam(INB~s(pi1)+s(rho)+s(gamma)+s(gamma2)+s(lambda.2.3.fix)+s(lambda.1.3.fix)+s(SE1)+s(SE2),data=theta)
+lmm1<-gam(INB~s(pi1)+s(rho)+s(gamma)+s(gamma2)+s(lambda.2.3.fix)+s(lambda.1.3.fix),data=theta)
 
 #Model
 model.dat<-function(){
@@ -513,13 +513,10 @@ EVSI.Jalal.uncert<-foreach(i=1:(uncert),.combine=c,
                              gamma2.n0<-n*(var.theta[4]/var(gamma2.mean)-1)
                              lambda2.n0<-n*(var.theta[5]/var(lambda.2.3.fix.mean)-1)
                              lambda1.n0<-n*(var.theta[6]/var(lambda.1.3.fix.mean)-1)
-                             SE1.n0<-n*(var.theta[7]/var(SE1.mean)-1)
-                             SE2.n0<-n*(var.theta[8]/var(SE2.mean)-1)
                              
-                             rm(pi1.mean,rho.mean,gamma.mean,gamma2.mean,lambda.2.3.fix.mean,lambda.1.3.fix.mean,
-                                SE.mean,SE1.mean,SE2.mean)
-                             n0<-c(pi1.n0,rho.n0,gamma.n0,gamma2.n0,lambda2.n0,lambda1.n0,SE1.n0,SE2.n0)
-                             n<-rep(150,8)
+                             rm(pi1.mean,rho.mean,gamma.mean,gamma2.mean,lambda.2.3.fix.mean,lambda.1.3.fix.mean)
+                             n0<-c(pi1.n0,rho.n0,gamma.n0,gamma2.n0,lambda2.n0,lambda1.n0)
+                             n<-rep(150,6)
                              llpred<-predict.ga(lmm1,n0=n0,n=n)
                              evsi.Jal <- mean(pmax(0,llpred))-max(mean(llpred),0)
                              rm(llpred)

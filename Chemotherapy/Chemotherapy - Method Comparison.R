@@ -4,6 +4,8 @@ library(R2jags)
 library(R2OpenBUGS)
 library(BCEA)
 library(mgcv)
+library(foreach)
+library(doParallel)
 # Performs the baseline cost-effectiveness analysis
 # Estimates EVPPI using the Heath et al method - object names evppi.half
 
@@ -36,20 +38,15 @@ evpi
 
 ### EVPPI estimation
 y<-INB[,-d.star]
-lmm1<-gam(y~s(pi1)+s(rho)+s(gamma)+s(gamma2)+s(lambda.2.3.fix)+s(lambda.1.3.fix)+s(SE1)+s(SE2),data=theta)
+lmm1<-gam(y~te(pi1,rho,gamma,gamma2,lambda.2.3.fix,lambda.1.3.fix,k=3),data=theta)
 
 evppi <- mean(pmax(0,lmm1$fitted.values))
 evppi
 save<-lmm1$fitted.values
 
-uncert<-200
-library(foreach)
-library(doParallel)
-no_cores <- detectCores()
-cl<-makeCluster(no_cores)
-registerDoParallel(cl)
-
 ###Heath et al#########################
+start.heath<-Sys.time()
+
 Size.Tot<-500000
 Size.Dist<-50
 #Model
@@ -130,14 +127,13 @@ filein <- file.path(tempdir(),fileext="datmodel.txt")
 write.model(model.dat,filein)
 
 #Number of Side Effects
-pi1<-as.data.frame(prior.model$BUGSoutput$sims.matrix)[,"pi1"]
-pi2<-as.data.frame(prior.model$BUGSoutput$sims.matrix)[,"pi2"]
-
+pi1<-theta[,"pi1"]
+pi2<-theta[,"pi1"]*theta[,"rho"]
 #Treatment of Side Effects
-gamma<-as.data.frame(prior.model$BUGSoutput$sims.matrix)[,"gamma"]
-gamma2<-as.data.frame(prior.model$BUGSoutput$sims.matrix)[,"gamma2"]
-recover.amb<--log(1-as.data.frame(prior.model$BUGSoutput$sims.matrix)[,"lambda.1.3.fix"])
-recover.hosp<--log(1-as.data.frame(prior.model$BUGSoutput$sims.matrix)[,"lambda.2.3.fix"])
+gamma<-theta[,"gamma"]
+gamma2<-theta[,"gamma2"]
+recover.amb<--log(1-theta[,"lambda.1.3.fix"])
+recover.hosp<--log(1-theta[,"lambda.2.3.fix"])
 ##Across Q Values
 Q<-50
 var.X.mat<-array(NA,dim=Q)
@@ -151,23 +147,7 @@ gamma.q<-sample(quantile(gamma,probs=1:Q/(Q+1)))
 gamma2.q<-sample(quantile(gamma2,probs=1:Q/(Q+1)))
 recover.amb.q<-sample(quantile(recover.amb,probs=1:Q/(Q+1)))
 recover.hosp.q<-sample(quantile(recover.hosp,probs=1:Q/(Q+1)))
-EVSI.Heath.uncert<-foreach(i=1:(uncert),.combine=c,
-                     .export=c("pi1.q","pi2.q","gamma.q","gamma2.q","recover.amb.q","recover.hosp.q",
-                               "save","Q","data","parameters.to.save","filein","n.chains","n.iter",
-                               "num.pat", "num.se",
-                               "num.amb", "num.death",
-                               "p1.1.3","p2.1.3",
-                               "p1.2.3","p2.2.3",
-                               "m.rho", "tau.rho",
-                               "m.amb", "tau.amb",
-                               "m.hosp", "tau.hosp",
-                               "m.death", "tau.death",
-                               "N",
-                               "p1.chemo","p2.chemo",
-                               "p1.amb","p2.amb",
-                               "p1.hosp","p2.hosp",
-                               "TH"),
-                     .packages=c("R2jags","R2OpenBUGS")) %dopar% {
+
 for(i in 1:Q){
   ##Moment Matching
   #Generate Data
@@ -241,13 +221,12 @@ for(i in 1:Q){
   rm(NB.X)
 }
 prepost.MM<-(save-mean(save))/sd(save)*sqrt(var(NB[,2]-NB[,1])-mean(var.X.mat))+mean(save)
-EVSI.calc<-mean(pmax(prepost.MM,0))-max(0,mean(prepost.MM))
-rm(prepost.MM)
-EVSI.calc
-                     }
-stopCluster(cl)
+evsi.heath<-mean(pmax(prepost.MM,0))-max(0,mean(prepost.MM))
+evsi.heath
+end.heath<-Sys.time()
 
 #####################Jalal and Alarid-Escudero#####################
+start.jalal<-Sys.time()
 ###Estimating n0
 Size.Outer<-1000
 Size.Inner<-10000
@@ -257,28 +236,6 @@ n.chains <- 3     # Number of chains
 n.burnin <- 1000  # Number of burn in iterations
 n.iter <- ceiling(Size.Inner/n.chains) + n.burnin # Number of iterations per chain
 
-library(foreach)
-library(doParallel)
-no_cores <- detectCores()-4
-cl<-makeCluster(no_cores)
-registerDoParallel(cl)
-EVSI.Jalal.uncert<-foreach(i=1:(uncert),.combine=c,
-                           .export=c("Size.Outer","Size.Inner",
-                                     "n.chains","n.burnin","n.iter",
-                                     "num.pat", "num.se",
-                                     "num.amb", "num.death",
-                                     "p1.1.3","p2.1.3",
-                                     "p1.2.3","p2.2.3",
-                                     "m.rho", "tau.rho",
-                                     "m.amb", "tau.amb",
-                                     "m.hosp", "tau.hosp",
-                                     "m.death", "tau.death",
-                                     "N",
-                                     "p1.chemo","p2.chemo",
-                                     "p1.amb","p2.amb",
-                                     "p1.hosp","p2.hosp",
-                                     "TH","predict.ga","lmm1"),
-                           .packages=c("R2jags","R2OpenBUGS","mgcv")) %dopar% {
 pi1.mean<-rho.mean<-gamma.mean<-gamma2.mean<-lambda.2.3.fix.mean<-lambda.1.3.fix.mean<-SE1.mean<-SE2.mean<-array(NA,dim=Size.Outer)
 for(i in 1:Size.Outer){
   #Generate Data
@@ -341,18 +298,19 @@ SE2.n0<-n*(var.theta[8]/var(SE2.mean)-1)
 
 rm(pi1.mean,rho.mean,gamma.mean,gamma2.mean,lambda.2.3.fix.mean,lambda.1.3.fix.mean,
    SE.mean,SE1.mean,SE2.mean)
-n0<-c(pi1.n0,rho.n0,gamma.n0,gamma2.n0,lambda2.n0,lambda1.n0,SE1.n0,SE2.n0)
-n<-rep(150,8)
-llpred<-predict.ga(lmm1,n0=n0,n=n)
-evsi.Jal <- mean(pmax(0,llpred))-max(mean(llpred),0)
+lmm.jalal<-gam(y~s(pi1)+s(rho)+s(gamma)+s(gamma2)+s(lambda.2.3.fix)+s(lambda.1.3.fix),data=theta)
+n0<-c(pi1.n0,rho.n0,gamma.n0,gamma2.n0,lambda2.n0,lambda1.n0)
+n<-rep(150,6)
+llpred<-predict.ga(lmm.jalal,n0=n0,n=n)
+evsi.jalal <- mean(pmax(0,llpred))-max(mean(llpred),0)
 rm(llpred)
-evsi.Jal
-}
-stopCluster(cl)
+evsi.jalal
+
+end.jalal<-Sys.time()
 
 ###############Strong et al.#########################
+start.strong<-Sys.time()
 
-start<-Sys.time()
 X.SE1<-X.SE2<-X.N.die<-X.N.hosp<-X.amb<-X.hosp<-array(dim=Size.Prior)
 for(i in 1:Size.Prior){
   n<-150
@@ -372,15 +330,13 @@ X.hosp[i]<-sum(T.re.hosp)
 
 dat<-as.data.frame(cbind(y,X.amb,X.SE1,X.SE2,X.N.hosp,X.hosp,X.N.die))
 prepost.s<-gam(y~te(X.amb, X.SE1, X.SE2, X.N.hosp, X.hosp, X.N.die, k=3), data=dat)
+evsi.strong<-mean(pmax(0,prepost.s$fitted.values))-max(0,mean(prepost.s$fitted.values))
+evsi.strong
 
-end<-Sys.time()
-
-time.Strong<-difftime(end,start,units="auto")
-plot(prepost.s)
-
-EVSI.strong<-mean(pmax(0,prepost.s$fitted.values))-max(0,mean(prepost.s$fitted.values))
+end.strong<-Sys.time()
 
 ##############Menzies########################
+start.menzies<-Sys.time()
 likelihood<-function(D,theta){
   n<-150
   PSA.sim<-dim(theta)[1]
@@ -414,21 +370,23 @@ for(i in 1:Size.Outer){
   D<-as.data.frame(cbind(X.SE1,X.SE2,X.amb,X.hosp,X.N.die,X.N.hosp))  
   ll<-likelihood(D,params)
   w<-ll/sum(ll)
-  prepost.M[i]<-w%*%y[1:Size.Outer]
+  prepost.M[i]<-w%*%save[1:Size.Outer]
 }
-end<-Sys.time()
 
-time.Menzies<-end-start
 evsi.Menzies<-mean(pmax(0,prepost.M))-max(0,mean(prepost.M))
+evsi.Menzies
 
-c(SeA=EVSI.strong,M=evsi.Menzies,JA=evsi.Jal,HeA=mean(pmax(prepost.MM,0),na.rm=TRUE)-max(0,mean(prepost.MM,na.rm=TRUE)),
-      Truth = evsi.true)
+end.menzies<-Sys.time()
 
-}
-stopCluster(cl)
+c(SeA=evsi.strong,
+  M=evsi.Menzies,
+  JA=evsi.jalal,
+  HeA=evsi.heath,
+  Truth = evsi.true)
 
-cbind(SeA=time.Strong,
-      M=time.Menzies,
-      JA=time.Jalal,
-      HeA=NA,
+
+c(SeA=end.strong-start.strong,
+      M=end.menzies-start.menzies,
+      JA=end.jalal-start.jalal,
+      HeA=end.heath-start.heath,
       Truth = "42 Days")
