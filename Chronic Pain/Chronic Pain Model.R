@@ -15,8 +15,6 @@ library(R2OpenBUGS)
 library(R2jags)
 library(mgcv)
 library(psych)
-library(foreach)
-library(doParallel)
 
 gamma.par<-function(par.est){
   alpha=100
@@ -33,8 +31,9 @@ prob.novel<-0.3
 cost.novel<-6
 
 ##MENZIES N
-N<-5000
-#N<-100000
+#N<-5000
+##ALL N
+N<-100000
 
 #Costs
 #Treatment costs are considered known and taken from the literature. The novel treatment is assumed to be
@@ -301,81 +300,19 @@ effects.t2<-array(NA,N)
 for(i in 1:N){
   effects.t2[i]<- sum(Prob.Array.2[,,i]%*%u.Mat[i,])
 }
+rm(u.Mat,c.Mat.t1,c.Mat.t2)
 ####EVPPI####
 #This gives the standard cost-effectiveness analysis for the Chronic Pain model.
 #It also has the EVPPI calculations to determine where to focus analysis.
 
 discount.15<-sum(1/(1+0.035)^(0:15))
 INB<-discount.15*((effects.t1-effects.t2)*20000-(costs.t1-costs.t2))
+
 save<-gam(INB~te(u.l1.noae,u.l1.withdraw.noae))$fitted.values
 
-
-rm("AE.l1.t1","AE.l1.t2","AE.l2.t1","AE.l2.t2","beta.par","c.ae","c.dist","c.l2","c.l3","c.Mat.t1",
-   "c.Mat.t2","c.med.t1","c.med.t2","c.t1","c.t2","c.withdraw","c.withdraw.ae","cost.novel","costs.t1",
-   "costs.t2","Dist","effects.t1","effects.t2","gamma.par","i","Inflation","InitVector","Markov_Prob",
-   "No.AE.l1.t1","No.AE.l1.t2","No.AE.l2.t1","No.AE.l2.t2","p.ae.l1.t1","p.ae.l1.t2","p.ae.l2.t1",
-   "p.ae.l2.t2","p.dist.l1","p.dist.l2","p.with.ae.l1.t1","p.with.ae.l1.t2","p.with.ae.l2.t1","p.with.ae.l2.t2",
-   "p.with.l1.t1","p.with.l1.t2","p.with.l2.t1","p.with.l2.t2","PriceIndex0910","PriceIndex1213","Prob.Array.1",
-   "Prob.Array.2","prob.novel","PSA.Trans.Mat.t1","PSA.Trans.Mat.t2","Subs.treat","Time_Horizen","u.dist",
-   "u.l1.withdraw.ae","u.l1.ae","u.l2","u.l3","u.Mat","With.AE.l1.t1",
-   "With.AE.l1.t2","With.AE.l2","With.l1.t1","With.l1.t2","With.l2","discount.15")
 
 betaPar <- function(m,s){
   a <- m*( (m*(1-m)/s^2) -1 )
   b <- (1-m)*( (m*(1-m)/s^2) -1 )
   list(a=a,b=b)
 }
-
-####MENZIES####
-sig.X.noae<-0.300
-sig.X.with<-0.310
-n.<-c(10,25,50,100,150)
-
-
-sim_data<-function(u.noae,u.withdraw,n,sig.X.noae=0.300,sig.X.with=0.310){
-  rand<-rbinom(n,1,0.687)
-  samp<-rbeta(sum(rand),max(0,betaPar(u.noae,sig.X.noae)$a),max(0,betaPar(u.noae,sig.X.noae)$b))
-  samp.with<-rbeta(sum(rand),max(0,betaPar(u.withdraw,sig.X.with)$a),max(0,betaPar(u.withdraw,sig.X.with)$b))
-  r<-cbind(samp,samp.with)
-  return(r)
-}
-func.dbeta<-function(u.l1.noae,u.l1.withdraw.noae,X,sig.X.noae=0.300,sig.X.with=0.310){
-  noae.par<-betaPar(u.l1.noae,sig.X.noae)
-  withdraw.par<-betaPar(u.l1.withdraw.noae,sig.X.with)
-  d<-exp(sum(dbeta(X[,1],noae.par$a,noae.par$b,log=T))+
-           sum(dbeta(X[,2],withdraw.par$a,withdraw.par$b,log=T)))
-  return(d)
-}
-
-no_cores <- detectCores()
-cl<-makeCluster(no_cores)
-registerDoParallel(cl)
-uncert<-32
-EVSI.Menzies.uncert<-foreach(i=1:(uncert),.combine=rbind,
-                             .export=c("u.l1.withdraw.noae","u.l1.noae",
-                                       "save","sig.X.noae",
-                                       "sig.X.with","betaPar",
-                                       "sim_data","func.dbeta","n.","N")) %dopar% {
-                                         EVSI.men<-array(NA,dim=length(n.))
-                                         for(i in 1:length(n.)){
-                                           mu.X<-array(NA,dim=N)
-                                           for(j in 1:N){
-                                             dat.M<-sim_data(u.l1.noae[j],u.l1.withdraw.noae[j],n.[i])
-                                             app<-function(u.l1.noae,u.l1.withdraw.noae){
-                                               r<-func.dbeta(u.l1.noae,u.l1.withdraw.noae,X=dat.M)
-                                               return(r)
-                                             }
-                                             likeli<-mapply(app,u.l1.noae=u.l1.noae[1:N],u.l1.withdraw.noae=u.l1.withdraw.noae[1:N])
-                                             weights<-likeli/sum(likeli,na.rm=TRUE)
-                                             weights[is.na(weights)]<-0
-                                             mu.X[j]<-weights%*%save[1:N]
-                                             rm(weights)
-                                           }
-                                           EVSI.men[i]<-mean(pmax(0,mu.X),na.rm=TRUE)-max(0,mean(mu.X,na.rm=TRUE))
-                                           rm(mu.X)
-                                         }
-                                         EVSI.men
-                                       }
-stopCluster(cl)
-
-write.table(EVSI.Menzies.uncert,"/home/aheath/Chronic_Pain/EVSIMenzies_3.txt")
